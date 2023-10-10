@@ -21,12 +21,13 @@ void measure(size_t sz) {
   for (size_t i = 0; i < len / MIN_LINE_SIZE; ++i) {
     idx.push_back(MIN_LINE_SIZE * i + dist(rng));
   }
-  auto mid_iter = idx.begin() + sz * 1024 / 2 / MIN_LINE_SIZE;
-  std::shuffle(idx.begin(), mid_iter, rng);
-  std::shuffle(mid_iter, idx.end(), rng);
-  for (size_t i = 1; i < idx.size() / 2; i += 2) {
-    std::swap(idx[i], idx[i + idx.size() / 2]);
-  }
+  // auto mid_iter = idx.begin() + sz * 1024 / 2 / MIN_LINE_SIZE;
+  // std::shuffle(idx.begin(), mid_iter, rng);
+  // std::shuffle(mid_iter, idx.end(), rng);
+  // for (size_t i = 1; i < idx.size() / 2; i += 2) {
+  //   std::swap(idx[i], idx[i + idx.size() / 2]);
+  // }
+  std::shuffle(idx.begin(), idx.end(), rng);
 
   volatile unsigned char *ptr = &vec[0];
 
@@ -39,8 +40,8 @@ void measure(size_t sz) {
   auto t2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<int64_t, std::nano> duration = t2 - t1;
 
-  std::cout << "Size " << std::setw(8) << sz
-            << " KB; Average access time: " << std::setw(8)
+  std::cout << "Size " << std::setw(6) << sz
+            << " KB; Average access time: " << std::setw(6)
             << duration.count() / len << " nanos\n";
 }
 
