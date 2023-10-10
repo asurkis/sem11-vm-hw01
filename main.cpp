@@ -12,17 +12,20 @@
 int buffer[16 * 1024 * 1024];
 
 void do_random_access(volatile int *ptr, size_t len) {
-  std::minstd_rand rng;
-  std::uniform_int_distribution<size_t> idx_distrib(0, len - 1);
-  for (uint64_t i = 0; i < 8 * 1024 * 1024; ++i) {
-    size_t pos = idx_distrib(rng);
-    ptr[pos]++;
+  int pos = 0;
+  for (int i = 0; i < 8 * 1024 * 1024; ++i) {
+    int dx = ptr[pos];
+    pos = (pos + dx + 1) % len;
   }
 }
 
 void measure_size(size_t kb) {
   size_t len = 1024 * kb / sizeof(int);
-  memset(buffer, 0, sizeof(buffer[0]) * len);
+  for (size_t i = 0; i < len; ++i) {
+    buffer[i] = i;
+  }
+  std::minstd_rand rng;
+  std::shuffle(buffer, buffer + len, rng);
   volatile int *ptr = buffer;
 
   // Preload cache
@@ -110,13 +113,13 @@ void measure_3() {
 }
 
 int main() {
-  for (size_t kb = 8; kb <= 1024; kb += 8) {
+  for (size_t kb = 16; kb <= 1024; kb += 16) {
     measure_size(kb);
   }
   measure_size(sizeof(buffer) / 1024);
-  for (size_t step = 1; step <= 1024; step *= 2) {
-    measure_assoc(step);
-  }
+  // for (size_t step = 1; step <= 1024; step *= 2) {
+  //   measure_assoc(step);
+  // }
   // measure_3();
   return 0;
 }
