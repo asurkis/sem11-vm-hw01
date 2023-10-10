@@ -14,7 +14,7 @@ void measure(size_t kb) {
   size_t len = vec.size();
   volatile unsigned char *ptr = &vec[0];
 
-  std::default_random_engine rng;
+  std::minstd_rand rng;
   std::uniform_int_distribution<size_t> idx_distrib(0, len - 1);
 
   // Preload cache
@@ -37,7 +37,7 @@ void measure(size_t kb) {
 }
 
 int main() {
-  size_t step = 32;
+  size_t step = 4;
   for (size_t kb = 1; kb <= 1024; kb *= step) {
     for (size_t i = 1; i < step; ++i) {
       measure(i * kb);
