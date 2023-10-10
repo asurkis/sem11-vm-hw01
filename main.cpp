@@ -9,26 +9,27 @@
 #include <ratio>
 #include <vector>
 
+void do_random_access(volatile int *ptr, size_t len) {
+  std::minstd_rand rng;
+  std::uniform_int_distribution<size_t> idx_distrib(0, len - 1);
+  for (size_t i = 0; i < 1024 * 1024; ++i) {
+    size_t pos = idx_distrib(rng);
+    ptr[pos]++;
+  }
+}
+
 void measure(size_t kb) {
-  std::vector<unsigned char> vec(1024 * kb, '\0');
+  std::vector<int> vec(1024 * kb / sizeof(int), '\0');
   size_t len = vec.size();
-  volatile unsigned char *ptr = &vec[0];
+  volatile int *ptr = &vec[0];
 
   std::minstd_rand rng;
   std::uniform_int_distribution<size_t> idx_distrib(0, len - 1);
 
   // Preload cache
-  for (int j = 0; j < 15; ++j) {
-    for (size_t i = 0; i < len; ++i) {
-      ptr[i] = 15 - j;
-    }
-  }
-
+  do_random_access(ptr, len);
   auto t1 = std::chrono::high_resolution_clock::now();
-  for (size_t i = 0; i < 1024 * 1024; ++i) {
-    size_t pos = idx_distrib(rng);
-    ptr[pos]++;
-  }
+  do_random_access(ptr, len);
   auto t2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> duration = t2 - t1;
 
