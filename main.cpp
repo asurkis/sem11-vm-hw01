@@ -3,25 +3,27 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstring>
 #include <iomanip>
 #include <iostream>
 #include <random>
 #include <ratio>
-#include <vector>
+
+int buffer[16 * 1024 * 1024];
 
 void do_random_access(volatile int *ptr, size_t len) {
   std::minstd_rand rng;
   std::uniform_int_distribution<size_t> idx_distrib(0, len - 1);
-  for (uint64_t i = 0; i < 1024 * 1024; ++i) {
+  for (uint64_t i = 0; i < 8 * 1024 * 1024; ++i) {
     size_t pos = idx_distrib(rng);
     ptr[pos]++;
   }
 }
 
 void measure_size(size_t kb) {
-  std::vector<int> vec(1024 * kb / sizeof(int), 0);
-  size_t len = vec.size();
-  volatile int *ptr = vec.data();
+  size_t len = 1024 * kb / sizeof(int);
+  memset(buffer, 0, sizeof(buffer[0]) * len);
+  volatile int *ptr = buffer;
 
   // Preload cache
   do_random_access(ptr, len);
@@ -45,9 +47,9 @@ void do_steps(volatile int *ptr, size_t step, size_t len) {
 }
 
 void measure_assoc(size_t step) {
-  std::vector<int> vec(32 * 1024, 0);
-  size_t len = vec.size();
-  volatile int *ptr = vec.data();
+  size_t len = 32 * 1024;
+  memset(buffer, 0, sizeof(buffer[0]) * len);
+  volatile int *ptr = buffer;
 
   // Preload cache
   do_steps(ptr, step, len);
@@ -60,9 +62,61 @@ void measure_assoc(size_t step) {
             << "; Access time: " << duration.count() << " ms\n";
 }
 
+void do_ws(volatile int *ptr, size_t ws, size_t assoc) {
+  for (size_t iter = 0; iter < 1024; ++iter) {
+    for (size_t i = 0; i < assoc; ++i) {
+      ptr[ws * i]++;
+    }
+  }
+}
+
+void measure_3() {
+  double prev_ms = 0.0;
+  size_t assoc_old = 0;
+  bool is_first = true;
+  volatile int *ptr = buffer;
+  for (size_t ws = 1024; ws > 0; ws /= 2) {
+    for (size_t assoc = 1; assoc * ws <= sizeof(buffer) / sizeof(buffer[0]);
+         ++assoc) {
+      size_t len = ws * assoc;
+
+      do_ws(ptr, ws, assoc);
+      auto t1 = std::chrono::high_resolution_clock::now();
+      do_ws(ptr, ws, assoc);
+      auto t2 = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> duration = t2 - t1;
+
+      double ms = duration.count() / assoc;
+
+      if (is_first) {
+        prev_ms = ms;
+        is_first = false;
+        continue;
+      }
+
+      double eps = ms / prev_ms - 1.0;
+      prev_ms = ms;
+      if (std::abs(eps) >= 0.25) {
+        if (assoc - 1 == 2 * assoc_old) {
+          std::cout << "ws: " << ws << "; assoc: " << assoc
+                    << "; duration: " << duration.count() << " ms\n";
+        } else {
+          assoc_old = assoc - 1;
+          break;
+        }
+      }
+    }
+  }
+}
+
 int main() {
+  for (size_t kb = 8; kb <= 1024; kb += 8) {
+    measure_size(kb);
+  }
+  measure_size(sizeof(buffer) / 1024);
   for (size_t step = 1; step <= 1024; step *= 2) {
     measure_assoc(step);
   }
+  // measure_3();
   return 0;
 }
