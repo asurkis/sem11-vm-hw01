@@ -11,12 +11,13 @@
 
 int buffer[16 * 1024 * 1024];
 
-void do_random_access(volatile int *ptr, size_t len) {
+int do_random_access(int *ptr, size_t len) {
   int pos = 0;
   for (int i = 0; i < 8 * 1024 * 1024; ++i) {
     int dx = ptr[pos];
     pos = (pos + dx + 1) % len;
   }
+  return pos;
 }
 
 void measure_size(size_t kb) {
@@ -26,20 +27,20 @@ void measure_size(size_t kb) {
   }
   std::minstd_rand rng;
   std::shuffle(buffer, buffer + len, rng);
-  volatile int *ptr = buffer;
+  int *ptr = buffer;
 
   // Preload cache
-  do_random_access(ptr, len);
+  int garbage = do_random_access(ptr, len);
   auto t1 = std::chrono::high_resolution_clock::now();
-  do_random_access(ptr, len);
+  garbage += do_random_access(ptr, len);
   auto t2 = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> duration = t2 - t1;
 
   std::cout << "Size: " << std::setw(6) << kb
-            << " KB; Access time: " << duration.count() << " ms\n";
+            << " KB; Access time: " << duration.count() << " ms; Garbage: " << garbage << "\n";
 }
 
-void do_steps(volatile int *ptr, size_t step, size_t len) {
+void do_steps(int *ptr, size_t step, size_t len) {
   for (uint64_t iter = 0; iter < 1024; ++iter) {
     for (size_t j = 0; j < step; ++j) {
       for (size_t i = j; i < len; i += step) {
@@ -52,7 +53,7 @@ void do_steps(volatile int *ptr, size_t step, size_t len) {
 void measure_assoc(size_t step) {
   size_t len = 32 * 1024;
   memset(buffer, 0, sizeof(buffer[0]) * len);
-  volatile int *ptr = buffer;
+  int *ptr = buffer;
 
   // Preload cache
   do_steps(ptr, step, len);
@@ -65,7 +66,7 @@ void measure_assoc(size_t step) {
             << "; Access time: " << duration.count() << " ms\n";
 }
 
-void do_ws(volatile int *ptr, size_t ws, size_t assoc) {
+void do_ws(int *ptr, size_t ws, size_t assoc) {
   for (size_t iter = 0; iter < 1024; ++iter) {
     for (size_t i = 0; i < assoc; ++i) {
       ptr[ws * i]++;
@@ -77,7 +78,7 @@ void measure_3() {
   double prev_ms = 0.0;
   size_t assoc_old = 0;
   bool is_first = true;
-  volatile int *ptr = buffer;
+  int *ptr = buffer;
   for (size_t ws = 1024; ws > 0; ws /= 2) {
     for (size_t assoc = 1; assoc * ws <= sizeof(buffer) / sizeof(buffer[0]);
          ++assoc) {
@@ -113,13 +114,13 @@ void measure_3() {
 }
 
 int main() {
-  for (size_t kb = 16; kb <= 1024; kb += 16) {
+  for (size_t kb = 1; kb <= 4096; kb *= 2) {
     measure_size(kb);
   }
-  measure_size(sizeof(buffer) / 1024);
-  // for (size_t step = 1; step <= 1024; step *= 2) {
-  //   measure_assoc(step);
-  // }
+  // measure_size(sizeof(buffer) / 1024);
+  for (size_t step = 1; step <= 4096; step *= 2) {
+    measure_assoc(step);
+  }
   // measure_3();
   return 0;
 }
